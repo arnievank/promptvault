@@ -41,8 +41,6 @@ If you need a more robust or collaborative solution, a backend database would be
 
 ## **Contributing**
 
-(This section is optional for a personal project, but you can add it if you plan to share and allow contributions)
-
 If you'd like to contribute to this simple project, feel free to fork the repository and submit pull requests.
 
 ## **License**
