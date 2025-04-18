@@ -1,0 +1,326 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prompt Archive Sheet</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styles for better table appearance and tag colors */
+        .tag {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            margin-right: 0.5rem;
+            margin-bottom: 0.25rem;
+            border-radius: 9999px; /* Full rounded corners */
+            font-size: 0.875rem; /* sm text */
+            font-weight: 600; /* semi-bold */
+            color: white;
+        }
+        .prompt-cell {
+            white-space: pre-wrap; /* Preserve line breaks and spaces */
+            word-break: break-word; /* Break long words to prevent overflow */
+        }
+        /* Style for the copy button */
+        .copy-btn {
+            flex-shrink: 0; /* Prevent button from shrinking */
+        }
+    </style>
+</head>
+<body class="bg-gray-100 p-6">
+    <div class="container mx-auto bg-white p-8 rounded-lg shadow-md">
+        <h1 class="text-2xl font-bold mb-6 text-gray-800">Prompt Archive Sheet</h1>
+        <p class="mb-6 text-gray-600">Add, filter, and search your prompts with colored tags.</p>
+
+
+        <div class="mb-8 p-6 bg-gray-50 rounded-md">
+            <div class="mb-4">
+                <label for="promptText" class="block text-sm font-medium text-gray-700 mb-2">Prompt Text:</label>
+                <textarea id="promptText" rows="4" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500" placeholder="Enter your prompt here..."></textarea>
+            </div>
+            <div class="mb-4">
+                <label for="promptTags" class="block text-sm font-medium text-gray-700 mb-2">Tags (comma-separated):</label>
+                <input type="text" id="promptTags" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500" placeholder="e.g., writing, creative, idea">
+            </div>
+            <button id="addPromptBtn" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">Add Prompt</button>
+        </div>
+
+
+        <div class="mb-8 p-6 bg-gray-50 rounded-md flex flex-col md:flex-row justify-between items-center">
+            <div class="mb-4 md:mb-0 md:mr-4 w-full md:w-1/2">
+                <label for="searchQuery" class="block text-sm font-medium text-gray-700 mb-2">Search Prompts:</label>
+                <input type="text" id="searchQuery" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500" placeholder="Search by prompt text...">
+            </div>
+            <div class="w-full md:w-1/2">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Filter by Tags:</label>
+                <div id="tagFilters" class="flex flex-wrap gap-2">
+                    <button class="tag bg-blue-600 text-white cursor-pointer hover:bg-blue-700" data-tag="all">All</button>
+                </div>
+            </div>
+        </div>
+
+
+        <div class="overflow-x-auto">
+            <table id="promptTable" class="min-w-full bg-white border border-gray-300 rounded-md">
+                <thead>
+                    <tr>
+                        <th class="px-6 py-3 border-b border-gray-300 bg-gray-100 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prompt</th>
+                        <th class="px-6 py-3 border-b border-gray-300 bg-gray-100 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tags</th>
+                    </tr>
+                </thead>
+                <tbody id="promptTableBody">
+                    </tbody>
+            </table>
+        </div>
+    </div>
+
+
+    <script>
+        const promptTextarea = document.getElementById('promptText');
+        const promptTagsInput = document.getElementById('promptTags');
+        const addPromptBtn = document.getElementById('addPromptBtn');
+        const promptTableBody = document.getElementById('promptTableBody');
+        const tagFiltersDiv = document.getElementById('tagFilters');
+        const searchQueryInput = document.getElementById('searchQuery');
+
+
+        let prompts = [];
+        const tagColors = {}; // To store consistent colors for tags
+
+
+        // Function to generate a random pastel color
+        function getRandomPastelColor() {
+            const hue = Math.floor(Math.random() * 360);
+            const saturation = Math.floor(Math.random() * 25) + 70; // 70-95% saturation
+            const lightness = Math.floor(Math.random() * 15) + 80; // 80-95% lightness
+            return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+        }
+
+
+        // Function to get a consistent color for a tag
+        function getTagColor(tag) {
+            if (!tagColors[tag]) {
+                tagColors[tag] = getRandomPastelColor();
+            }
+            return tagColors[tag];
+        }
+
+
+        // Function to save prompts to localStorage
+        function savePrompts() {
+            localStorage.setItem('prompts', JSON.stringify(prompts));
+            localStorage.setItem('tagColors', JSON.stringify(tagColors));
+        }
+
+
+        // Function to load prompts from localStorage
+        function loadPrompts() {
+            const savedPrompts = localStorage.getItem('prompts');
+            const savedTagColors = localStorage.getItem('tagColors');
+            if (savedPrompts) {
+                prompts = JSON.parse(savedPrompts);
+            }
+            if (savedTagColors) {
+                Object.assign(tagColors, JSON.parse(savedTagColors));
+            }
+        }
+
+
+        // Function to render the prompt table
+        function renderPrompts(filteredPrompts = prompts) {
+            promptTableBody.innerHTML = ''; // Clear current table
+            if (filteredPrompts.length === 0) {
+                promptTableBody.innerHTML = `<tr><td colspan="2" class="px-6 py-4 text-center text-gray-500">No prompts found.</td></tr>`;
+                return;
+            }
+
+
+            filteredPrompts.forEach((prompt, index) => {
+                const row = document.createElement('tr');
+                row.classList.add(index % 2 === 0 ? 'bg-gray-50' : 'bg-white'); // Zebra striping
+
+
+                // Prompt Cell
+                const promptCell = document.createElement('td');
+                // Removed 'whitespace-nowrap' to allow wrapping
+                promptCell.classList.add('px-6', 'py-4', 'text-sm', 'text-gray-900', 'prompt-cell');
+
+
+                // Container for prompt text and copy button
+                const promptContentDiv = document.createElement('div');
+                promptContentDiv.classList.add('flex', 'items-start', 'gap-2'); // Use flexbox for layout
+
+
+                const promptTextSpan = document.createElement('span');
+                promptTextSpan.classList.add('flex-grow', 'prompt-text-content'); // Allow text to grow and take space
+                promptTextSpan.textContent = prompt.text;
+
+
+                const copyButton = document.createElement('button');
+                copyButton.classList.add('copy-btn', 'px-2', 'py-1', 'bg-gray-200', 'text-gray-800', 'rounded-md', 'text-xs', 'hover:bg-gray-300');
+                copyButton.textContent = 'Copy';
+
+
+                promptContentDiv.appendChild(promptTextSpan);
+                promptContentDiv.appendChild(copyButton);
+                promptCell.appendChild(promptContentDiv);
+
+
+
+
+                // Tags Cell
+                const tagsCell = document.createElement('td');
+                // Keep whitespace-nowrap for tags cell if tags are expected to be short
+                tagsCell.classList.add('px-6', 'py-4', 'whitespace-nowrap', 'text-sm', 'text-gray-500');
+
+
+                if (prompt.tags && prompt.tags.length > 0) {
+                    prompt.tags.forEach(tag => {
+                        const tagSpan = document.createElement('span');
+                        tagSpan.classList.add('tag');
+                        tagSpan.textContent = tag;
+                        tagSpan.style.backgroundColor = getTagColor(tag);
+                        tagsCell.appendChild(tagSpan);
+                    });
+                } else {
+                    tagsCell.textContent = 'No tags';
+                }
+
+
+                row.appendChild(promptCell);
+                row.appendChild(tagsCell);
+                promptTableBody.appendChild(row);
+            });
+        }
+
+
+        // Function to render tag filter buttons
+        function renderTagFilters() {
+            tagFiltersDiv.innerHTML = ''; // Clear current filters
+            const allButton = document.createElement('button');
+            allButton.classList.add('tag', 'bg-blue-600', 'text-white', 'cursor-pointer', 'hover:bg-blue-700');
+            allButton.textContent = 'All';
+            allButton.dataset.tag = 'all';
+            tagFiltersDiv.appendChild(allButton);
+
+
+            const uniqueTags = [...new Set(prompts.flatMap(p => p.tags || []))];
+            uniqueTags.forEach(tag => {
+                const tagButton = document.createElement('button');
+                tagButton.classList.add('tag', 'cursor-pointer', 'hover:opacity-80');
+                tagButton.textContent = tag;
+                tagButton.dataset.tag = tag;
+                tagButton.style.backgroundColor = getTagColor(tag);
+                tagFiltersDiv.appendChild(tagButton);
+            });
+        }
+
+
+        // Event listener for Add Prompt button
+        addPromptBtn.addEventListener('click', () => {
+            const text = promptTextarea.value.trim();
+            const tags = promptTagsInput.value.split(',').map(tag => tag.trim()).filter(tag => tag !== '');
+
+
+            if (text) {
+                prompts.push({ text, tags });
+                promptTextarea.value = '';
+                promptTagsInput.value = '';
+                savePrompts();
+                renderPrompts();
+                renderTagFilters(); // Update filter buttons after adding new tags
+            } else {
+                // Use a simple message box instead of alert
+                alert('Prompt text cannot be empty.');
+            }
+        });
+
+
+        // Event listener for tag filter buttons
+        tagFiltersDiv.addEventListener('click', (event) => {
+            const target = event.target;
+            if (target.classList.contains('tag')) {
+                const selectedTag = target.dataset.tag;
+                if (selectedTag === 'all') {
+                    renderPrompts(); // Show all prompts
+                } else {
+                    const filtered = prompts.filter(prompt =>
+                        prompt.tags && prompt.tags.includes(selectedTag)
+                    );
+                    renderPrompts(filtered); // Show filtered prompts
+                }
+
+
+                // Highlight the active filter button
+                tagFiltersDiv.querySelectorAll('.tag').forEach(btn => {
+                    btn.classList.remove('ring-2', 'ring-blue-500', 'ring-offset-2');
+                });
+                target.classList.add('ring-2', 'ring-blue-500', 'ring-offset-2');
+            }
+        });
+
+
+        // Event listener for search input
+        searchQueryInput.addEventListener('input', (event) => {
+            const query = event.target.value.toLowerCase();
+            const filtered = prompts.filter(prompt =>
+                prompt.text.toLowerCase().includes(query) ||
+                (prompt.tags && prompt.tags.some(tag => tag.toLowerCase().includes(query)))
+            );
+            renderPrompts(filtered);
+
+
+            // Reset tag filter highlighting when searching
+             tagFiltersDiv.querySelectorAll('.tag').forEach(btn => {
+                btn.classList.remove('ring-2', 'ring-blue-500', 'ring-offset-2');
+            });
+             tagFiltersDiv.querySelector('[data-tag="all"]').classList.add('ring-2', 'ring-blue-500', 'ring-offset-2');
+        });
+
+
+        // Event listener for copy buttons using event delegation on the table body
+        promptTableBody.addEventListener('click', async (event) => {
+            const target = event.target;
+            if (target.classList.contains('copy-btn')) {
+                const promptTextElement = target.previousElementSibling; // Get the span with the prompt text
+                if (promptTextElement && promptTextElement.classList.contains('prompt-text-content')) {
+                    const textToCopy = promptTextElement.textContent;
+
+
+                    try {
+                        await navigator.clipboard.writeText(textToCopy);
+                        // Provide visual feedback
+                        const originalText = target.textContent;
+                        target.textContent = 'Copied!';
+                        target.disabled = true; // Disable button temporarily
+                        setTimeout(() => {
+                            target.textContent = originalText;
+                            target.disabled = false; // Re-enable button
+                        }, 1500); // Show "Copied!" for 1.5 seconds
+                    } catch (err) {
+                        console.error('Failed to copy text: ', err);
+                        // Attempt to log more details if available
+                        console.error('Error details:', JSON.stringify(err, Object.getOwnPropertyNames(err)));
+                        // Optionally, alert the user if copy failed
+                        // alert('Could not copy text. Please check your browser permissions or try a secure connection (HTTPS).');
+                    }
+                }
+            }
+        });
+
+
+
+
+        // Initial load and render
+        loadPrompts();
+        renderPrompts();
+        renderTagFilters();
+
+
+        // Set initial 'All' filter button as active
+        tagFiltersDiv.querySelector('[data-tag="all"]').classList.add('ring-2', 'ring-blue-500', 'ring-offset-2');
+
+
+    </script>
+</body>
+</html>
